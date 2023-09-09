@@ -1,5 +1,7 @@
 from collections import namedtuple
+from glob import glob
 import numpy as np
+from pathlib import Path
 import syglass
 from syglass import pyglass
 from tabulate import tabulate
@@ -9,6 +11,7 @@ import tifffile
 import os
 import sys
 import shutil
+import time
 import warnings
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -22,6 +25,27 @@ def pretty_data_size(nbytes):
         i += 1
     f = ('%.2f' % nbytes).rstrip('0').rstrip('.')
     return '%s %s' % (f, bytes_suffixes[i])
+
+
+def create_project(project_name : str):
+	project = pyglass.CreateProject(pyglass.path("."), project_name)
+
+	directory_description = pyglass.DirectoryDescription()
+	reference_file = glob(os.path.join("temp/*.tiff"))[0].replace("\\", "/")
+	directory_description.InspectByReferenceFile(reference_file)
+
+	data_provider = pyglass.OpenTIFFs(directory_description.GetFileList(), timeSeries=False)
+	conversion_driver = pyglass.ConversionDriver()
+	conversion_driver.SetInput(data_provider)
+	conversion_driver.SetOutput(project)
+
+	print("\nCreating syGlass project...\n")
+
+	conversion_driver.StartAsynchronous()
+	with tqdm(total=100) as progress_bar:
+		while conversion_driver.GetPercentage() < 100:
+				time.sleep(0.25)
+				progress_bar.update(conversion_driver.GetPercentage())
 
 
 def downsample_project(project_path : str):
@@ -87,12 +111,17 @@ def downsample_project(project_path : str):
 	for z in tqdm(range(image_resolution[2])):
 		slice_prefix = str(z).zfill(8)
 		slice_offset[2] = z
-		slice = project.get_custom_block(0, resolution_index, slice_offset, slice_resolution)
+		slice = project.get_custom_block(0, resolution_index - 1, slice_offset, slice_resolution)
 		tifffile.imwrite("temp/" + slice_prefix + "_temp.tiff", slice.data)
+
+	new_project_name = Path(project_path).stem + "_Downsampled"
+	create_project(new_project_name)
+	shutil.rmtree("temp")
+	print(f"\nDownsampled project file created in the directory \"{new_project_name}\".")
 
 
 if __name__ == "__main__":
 	if len(sys.argv) != 2:
-		print("Usage: python downsample_syg.py [path/to/syGlass/file.syg]")
+		print("\nUsage: python downsample_syg.py [path/to/syGlass/file.syg]")
 	else:
 		downsample_project(sys.argv[1])

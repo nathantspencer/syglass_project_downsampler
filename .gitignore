@@ -1,1 +1,5 @@
 temp/**
+log.txt
+**.sym
+**.syg
+**.bak
