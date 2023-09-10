@@ -81,11 +81,12 @@ def downsample_project(project_path : str):
 		block_count = resolution_map[i]
 		blocks_per_dimension = block_count ** (1.0 / 3.0)
 		resolution = (block_size * blocks_per_dimension).astype(np.uint64)
+		xyz_resolution = [resolution[2], resolution[1], resolution[0]]
 		data_size = resolution[0] * resolution[1] * resolution[2] * bytes_per_voxel
 		if i == resolution_count - 1:
-			resolution_options.append(["Current", resolution, pretty_data_size(data_size)])
+			resolution_options.append(["Current", xyz_resolution, pretty_data_size(data_size)])
 		else:
-			resolution_options.append([i + 1, resolution, pretty_data_size(data_size)])
+			resolution_options.append([i + 1, xyz_resolution, pretty_data_size(data_size)])
 
 	print("\n" + tabulate(resolution_options, headers=["Option", "Resolution", "Data Size"], tablefmt="simple_grid"))
 
@@ -99,7 +100,8 @@ def downsample_project(project_path : str):
 			resolution_selected = True
 
 	image_resolution = resolution_options[resolution_index - 1][1]
-	slice_resolution = [image_resolution[0], image_resolution[1], 1]
+	image_resolution.reverse()
+	slice_resolution = [1, image_resolution[1], image_resolution[2]]
 	slice_offset = np.asarray([0,0,0])
 
 	if os.path.exists("temp"):
@@ -108,9 +110,9 @@ def downsample_project(project_path : str):
 
 	print("\nWriting downsampled TIFF files...\n")
 
-	for z in tqdm(range(image_resolution[2])):
+	for z in tqdm(range(image_resolution[0])):
 		slice_prefix = str(z).zfill(8)
-		slice_offset[2] = z
+		slice_offset[0] = z
 		slice = project.get_custom_block(0, resolution_index - 1, slice_offset, slice_resolution)
 		tifffile.imwrite("temp/" + slice_prefix + "_temp.tiff", slice.data)
 
